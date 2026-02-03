@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "clawdesk": {
+      "url": "http://localhost:35182",
+      "transport": "http",
+      "headers": {
+        "Authorization": "Bearer YOUR_AUTH_TOKEN_HERE"
+      },
+      "description": "ClawDesk MCP Server - Windows 本地能力服务"
+    }
+  }
+}

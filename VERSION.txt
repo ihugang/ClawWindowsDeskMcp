@@ -1,0 +1,8 @@
+ClawDesk MCP Server
+版本: 0.2.0
+构建时间: 2026-02-03 11:28:20 UTC
+构建平台: Darwin arm64
+
+包含文件:
+- ClawDeskMCP-x64.exe (Windows x64)
+- ClawDeskMCP-x86.exe (Windows x86)

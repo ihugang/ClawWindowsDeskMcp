@@ -1,0 +1,13 @@
+# 运行时生成的文件
+config.json
+runtime.json
+usage.json
+logs/
+screenshots/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini

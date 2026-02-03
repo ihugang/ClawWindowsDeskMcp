@@ -1,0 +1,16 @@
+{
+    "auth_token": "WILL_BE_AUTO_GENERATED",
+    "server_port": 35182,
+    "auto_port": true,
+    "allowed_dirs": [
+        "C:/Users/YourUsername/Downloads",
+        "C:/Users/YourUsername/Documents",
+        "C:/Users/YourUsername/Desktop"
+    ],
+    "allowed_apps": {
+        "notepad": "C:/Windows/System32/notepad.exe",
+        "calc": "C:/Windows/System32/calc.exe"
+    },
+    "allowed_commands": ["npm", "git", "python", "node"],
+    "license_key": ""
+}
