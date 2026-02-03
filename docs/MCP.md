@@ -4,6 +4,45 @@
 
 ClawDesk MCP Server 实现了 Model Context Protocol (MCP) 标准协议，使 AI 助手能够通过标准化的方式调用 Windows 系统功能。
 
+**⚠️ 重要：从 v0.2.0 开始，所有 MCP 请求都需要 Bearer Token 认证。**
+
+## 认证
+
+### 获取 Token
+
+1. 启动 ClawDesk MCP Server
+2. 打开 `config.json` 文件
+3. 复制 `auth_token` 字段的值
+
+示例：
+
+```json
+{
+  "auth_token": "a1b2c3d4e5f6789012345678901234567890abcdefabcdefabcdefabcdefabcd",
+  ...
+}
+```
+
+### 使用 Token
+
+所有 MCP 请求都必须在 HTTP 头中包含 Authorization：
+
+```
+Authorization: Bearer YOUR_AUTH_TOKEN
+```
+
+示例：
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer a1b2c3d4..." \
+  -H "Content-Type: application/json" \
+  -d '{"protocolVersion":"2024-11-05",...}' \
+  http://localhost:35182/mcp/initialize
+```
+
+详细说明请参考 [Authentication Guide](Authentication.md)。
+
 ## MCP 协议版本
 
 - **协议版本**: 2024-11-05
@@ -193,7 +232,15 @@ ClawDesk MCP Server 实现了 Model Context Protocol (MCP) 标准协议，使 AI
 
 获取剪贴板内容。
 
+**增强功能**：支持文本、图片和文件三种类型！
+
 **参数**: 无
+
+**返回类型**:
+
+- `type: "text"` - 文本内容
+- `type: "image"` - 图片（返回 URL）
+- `type: "files"` - 文件列表（返回 URL 数组）
 
 **示例**:
 
@@ -204,13 +251,56 @@ ClawDesk MCP Server 实现了 Model Context Protocol (MCP) 标准协议，使 AI
 }
 ```
 
+**响应示例 1 - 文本**:
+
+```json
+{
+    "type": "text",
+    "content": "Hello World",
+    "length": 11,
+    "empty": false
+}
+```
+
+**响应示例 2 - 图片**:
+
+```json
+{
+    "type": "image",
+    "format": "png",
+    "url": "http://192.168.31.3:35182/clipboard/image/clipboard_images/clipboard_20260203_223015.png",
+    "path": "/clipboard/image/clipboard_images/clipboard_20260203_223015.png"
+}
+```
+
+**响应示例 3 - 文件**:
+
+```json
+{
+    "type": "files",
+    "files": [
+        {
+            "name": "20260203_223015_0_document.pdf",
+            "url": "http://192.168.31.3:35182/clipboard/file/20260203_223015_0_document.pdf",
+            "path": "/clipboard/file/20260203_223015_0_document.pdf"
+        }
+    ]
+}
+```
+
+**使用场景**:
+
+- 获取用户截图（Win+Shift+S）
+- 获取用户复制的文件
+- 获取用户复制的文本
+
 ### 5. set_clipboard
 
-设置剪贴板内容。
+设置剪贴板内容（仅支持文本）。
 
 **参数**:
 
-- `content` (string, 必需): 要设置的内容
+- `content` (string, 必需): 要设置的文本内容
 
 **示例**:
 
@@ -311,21 +401,29 @@ ClawDesk MCP Server 实现了 Model Context Protocol (MCP) 标准协议，使 AI
 
 ## 使用示例
 
+**重要：所有示例都需要添加 Authorization 头！**
+
 ### curl 示例
 
 ```bash
+# 设置 Token（从 config.json 获取）
+TOKEN="your-auth-token-from-config-json"
+
 # 初始化
 curl -X POST http://localhost:35182/mcp/initialize \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}'
 
 # 列出工具
 curl -X POST http://localhost:35182/mcp/tools/list \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
 
 # 调用工具
 curl -X POST http://localhost:35182/mcp/tools/call \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"list_windows","arguments":{}}'
 ```
@@ -337,10 +435,18 @@ import requests
 import json
 
 SERVER = "http://localhost:35182"
+TOKEN = "your-auth-token-from-config-json"  # 从 config.json 获取
+
+# 设置认证头
+headers = {
+    "Authorization": f"Bearer {TOKEN}",
+    "Content-Type": "application/json"
+}
 
 # 初始化
 init_response = requests.post(
     f"{SERVER}/mcp/initialize",
+    headers=headers,
     json={
         "protocolVersion": "2024-11-05",
         "capabilities": {},
@@ -352,6 +458,7 @@ print("Initialize:", init_response.json())
 # 列出工具
 tools_response = requests.post(
     f"{SERVER}/mcp/tools/list",
+    headers=headers,
     json={}
 )
 print("Tools:", tools_response.json())
@@ -359,6 +466,7 @@ print("Tools:", tools_response.json())
 # 调用工具
 call_response = requests.post(
     f"{SERVER}/mcp/tools/call",
+    headers=headers,
     json={
         "name": "list_windows",
         "arguments": {}
@@ -371,11 +479,18 @@ print("Result:", call_response.json())
 
 ```javascript
 const SERVER = "http://localhost:35182";
+const TOKEN = "your-auth-token-from-config-json"; // 从 config.json 获取
+
+// 设置认证头
+const headers = {
+    Authorization: `Bearer ${TOKEN}`,
+    "Content-Type": "application/json",
+};
 
 // 初始化
 fetch(`${SERVER}/mcp/initialize`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: headers,
     body: JSON.stringify({
         protocolVersion: "2024-11-05",
         capabilities: {},
@@ -388,7 +503,7 @@ fetch(`${SERVER}/mcp/initialize`, {
 // 列出工具
 fetch(`${SERVER}/mcp/tools/list`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: headers,
     body: JSON.stringify({}),
 })
     .then((res) => res.json())
@@ -397,7 +512,7 @@ fetch(`${SERVER}/mcp/tools/list`, {
 // 调用工具
 fetch(`${SERVER}/mcp/tools/call`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: headers,
     body: JSON.stringify({
         name: "list_windows",
         arguments: {},
@@ -409,16 +524,62 @@ fetch(`${SERVER}/mcp/tools/call`, {
 
 ## 与 Claude Desktop 集成
 
-### 配置文件
+**重要：需要配置 Token 认证！**
 
-在 Claude Desktop 的配置文件中添加：
+### 配置方法
+
+由于 ClawDesk Server 需要 Bearer Token 认证，你需要创建一个 MCP 客户端脚本来桥接 Claude Desktop 和 ClawDesk Server。
+
+**步骤 1：获取 Token**
+
+从 ClawDesk Server 的 `config.json` 文件中获取 `auth_token`。
+
+**步骤 2：创建 MCP 客户端**
+
+创建 `clawdesk-mcp-client.js` 文件：
+
+```javascript
+// clawdesk-mcp-client.js
+const fetch = require("node-fetch");
+
+const SERVER_URL = process.env.CLAWDESK_URL || "http://localhost:35182";
+const AUTH_TOKEN = process.env.CLAWDESK_TOKEN;
+
+if (!AUTH_TOKEN) {
+    console.error("Error: CLAWDESK_TOKEN environment variable not set");
+    process.exit(1);
+}
+
+const headers = {
+    Authorization: `Bearer ${AUTH_TOKEN}`,
+    "Content-Type": "application/json",
+};
+
+// 实现 MCP 客户端逻辑
+// 处理 stdin/stdout 通信
+// 转发请求到 ClawDesk Server
+// ...
+```
+
+**步骤 3：配置 Claude Desktop**
+
+编辑 Claude Desktop 配置文件：
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+添加配置：
 
 ```json
 {
     "mcpServers": {
         "clawdesk": {
-            "command": "http",
-            "args": ["http://localhost:35182/mcp"]
+            "command": "node",
+            "args": ["/path/to/clawdesk-mcp-client.js"],
+            "env": {
+                "CLAWDESK_URL": "http://localhost:35182",
+                "CLAWDESK_TOKEN": "your-auth-token-from-config-json"
+            }
         }
     }
 }
@@ -427,9 +588,10 @@ fetch(`${SERVER}/mcp/tools/call`, {
 ### 使用方法
 
 1. 启动 ClawDesk MCP Server
-2. 启动 Claude Desktop
-3. Claude 将自动连接到服务器
-4. 在对话中请求 Claude 使用工具
+2. 从 `config.json` 获取 `auth_token`
+3. 在 Claude Desktop 配置中设置 `CLAWDESK_TOKEN`
+4. 启动 Claude Desktop
+5. Claude 将通过客户端连接到服务器
 
 **示例对话**:
 
@@ -446,10 +608,12 @@ Claude: 我来帮你查看当前打开的窗口...
 
 ## 安全注意事项
 
-1. **本地访问**: 默认仅监听 127.0.0.1，仅本地访问
-2. **无认证**: 当前版本未实现认证机制
-3. **命令执行**: execute_command 工具具有高风险，请谨慎使用
-4. **文件访问**: 建议配置 allowed_dirs 白名单限制访问范围
+1. **Token 认证**: v0.2.0 开始所有请求都需要 Bearer Token
+2. **Token 安全**: 不要将 Token 提交到版本控制或公开分享
+3. **网络访问**: 可配置监听 0.0.0.0（网络）或 127.0.0.1（本地）
+4. **命令执行**: execute_command 工具具有高风险，请谨慎使用
+5. **文件访问**: 建议配置 allowed_dirs 白名单限制访问范围
+6. **防火墙**: 网络访问时建议配置防火墙规则
 
 ## 限制和已知问题
 
@@ -463,7 +627,7 @@ Claude: 我来帮你查看当前打开的窗口...
 ## 未来计划
 
 - [ ] 完整的 MCP 规范实现
-- [ ] Bearer Token 认证
+- [x] Bearer Token 认证（v0.2.0 已实现）
 - [ ] 资源（resources）支持
 - [ ] 提示词（prompts）支持
 - [ ] 流式响应

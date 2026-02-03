@@ -12,7 +12,7 @@ ClawDesk MCP Server 是一个 Windows 本地能力服务，遵循 Model Context 
 - **系统托盘**: 便捷的图形化管理界面
 - **灵活配置**: 支持 0.0.0.0 或 127.0.0.1 监听地址切换
 - **文件操作**: 磁盘枚举、目录列表、文件读取（支持行范围）、内容搜索
-- **剪贴板操作**: 通过 HTTP API 读写剪贴板内容
+- **剪贴板操作**: 通过 HTTP API 读写剪贴板内容（支持文本、图片、文件）
 - **截图功能**: 捕获屏幕截图并返回 Base64 编码的图像数据
 - **窗口管理**: 获取所有打开窗口的列表和详细信息
 - **进程管理**: 获取所有运行进程的列表和详细信息
@@ -26,6 +26,46 @@ ClawDesk MCP Server 是一个 Windows 本地能力服务，遵循 Model Context 
 ## HTTP API
 
 服务器启动后会在配置的端口（默认 35182）上监听 HTTP 请求。
+
+**⚠️ 重要：从 v0.2.0 开始，所有 API 请求都需要 Bearer Token 认证。**
+
+### 获取 Token
+
+1. 启动服务器后，会自动生成 `config.json` 文件
+2. 打开 `config.json`，找到 `auth_token` 字段
+3. 复制 Token 值（64 字符的十六进制字符串）
+
+示例 `config.json`：
+
+```json
+{
+  "auth_token": "a1b2c3d4e5f6789012345678901234567890abcdefabcdefabcdefabcdefabcd",
+  "server_port": 35182,
+  "listen_address": "0.0.0.0",
+  ...
+}
+```
+
+### 使用 Token
+
+在所有 HTTP 请求中添加 `Authorization` 头：
+
+```bash
+# 基本格式
+curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:35182/status
+
+# 实际示例
+curl -H "Authorization: Bearer a1b2c3d4e5f6789012345678901234567890abcdefabcdefabcdefabcdefabcd" \
+  http://192.168.31.3:35182/status
+```
+
+**注意**：
+
+- Token 必须以 `Bearer ` 开头（注意空格）
+- CORS 预检请求（OPTIONS）无需 Token
+- 未授权请求返回 `401 Unauthorized`
+
+详细说明请参考 [Authentication Guide](docs/Authentication.md)。
 
 ### 可用端点
 
@@ -178,18 +218,61 @@ GET http://localhost:35182/search?path=C:\test.txt&query=keyword&max=50
 
 #### 8. 读取剪贴板
 
+**增强功能**：支持文本、图片和文件三种类型！
+
 ```bash
 GET http://localhost:35182/clipboard
 ```
 
-响应：
+响应类型 1 - 文本：
 
 ```json
 {
-    "content": "剪贴板内容",
+    "type": "text",
+    "content": "剪贴板文本内容",
     "length": 15,
     "empty": false
 }
+```
+
+响应类型 2 - 图片（截图或复制的图片）：
+
+```json
+{
+    "type": "image",
+    "format": "png",
+    "url": "http://192.168.31.3:35182/clipboard/image/clipboard_images/clipboard_20260203_223015.png",
+    "path": "/clipboard/image/clipboard_images/clipboard_20260203_223015.png"
+}
+```
+
+响应类型 3 - 文件（从资源管理器复制的文件）：
+
+```json
+{
+    "type": "files",
+    "files": [
+        {
+            "name": "20260203_223015_0_document.pdf",
+            "url": "http://192.168.31.3:35182/clipboard/file/20260203_223015_0_document.pdf",
+            "path": "/clipboard/file/20260203_223015_0_document.pdf"
+        }
+    ]
+}
+```
+
+**下载剪贴板图片或文件**：
+
+```bash
+# 下载图片
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://192.168.31.3:35182/clipboard/image/clipboard_images/clipboard_20260203_223015.png" \
+  -o clipboard_image.png
+
+# 下载文件
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://192.168.31.3:35182/clipboard/file/20260203_223015_0_document.pdf" \
+  -o document.pdf
 ```
 
 #### 9. 写入剪贴板
@@ -406,102 +489,131 @@ GET http://localhost:35182/exit
 
 ### 使用示例
 
+**重要：所有示例都需要添加 Authorization 头！**
+
+首先设置 Token 变量（从 config.json 获取）：
+
+```bash
+# 设置 Token 变量
+TOKEN="your-auth-token-from-config-json"
+```
+
 使用 curl 测试：
 
 ```bash
 # 检查服务器状态
-curl http://localhost:35182/status
+curl -H "Authorization: Bearer $TOKEN" http://localhost:35182/status
 
 # 健康检查
-curl http://localhost:35182/health
+curl -H "Authorization: Bearer $TOKEN" http://localhost:35182/health
 
 # 获取磁盘列表
-curl http://localhost:35182/disks
+curl -H "Authorization: Bearer $TOKEN" http://localhost:35182/disks
 
 # 列出目录
-curl "http://localhost:35182/list?path=C:\\"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:35182/list?path=C:\\"
 
 # 读取文件
-curl "http://localhost:35182/read?path=C:\\test.txt"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:35182/read?path=C:\\test.txt"
 
 # 搜索文件内容
-curl "http://localhost:35182/search?path=C:\\test.txt&query=keyword"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:35182/search?path=C:\\test.txt&query=keyword"
 
 # 读取剪贴板
-curl http://localhost:35182/clipboard
+curl -H "Authorization: Bearer $TOKEN" http://localhost:35182/clipboard
 
 # 写入剪贴板
-curl -X PUT -H "Content-Type: application/json" \
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"content":"Hello World"}' \
   http://localhost:35182/clipboard
 
 # 截图（PNG）
-curl http://localhost:35182/screenshot | jq -r '.data' | base64 -d > screenshot.png
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:35182/screenshot | jq -r '.data' | base64 -d > screenshot.png
 
 # 截图（JPEG）
-curl "http://localhost:35182/screenshot?format=jpg" | jq -r '.data' | base64 -d > screenshot.jpg
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:35182/screenshot?format=jpg" | jq -r '.data' | base64 -d > screenshot.jpg
 
 # 获取窗口列表
-curl http://localhost:35182/windows | jq '.[0:5]'
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:35182/windows | jq '.[0:5]'
 
 # 获取进程列表
-curl http://localhost:35182/processes | jq '.[0:5]'
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:35182/processes | jq '.[0:5]'
 
 # 执行命令
-curl -X POST -H "Content-Type: application/json" \
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"command":"echo Hello"}' \
   http://localhost:35182/execute | jq .
 
 # MCP 协议：初始化
-curl -X POST -H "Content-Type: application/json" \
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}' \
   http://localhost:35182/mcp/initialize | jq .
 
 # MCP 协议：列出工具
-curl -X POST -H "Content-Type: application/json" \
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{}' \
   http://localhost:35182/mcp/tools/list | jq '.tools | length'
 
 # MCP 协议：调用工具
-curl -X POST -H "Content-Type: application/json" \
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"name":"list_windows","arguments":{}}' \
   http://localhost:35182/mcp/tools/call | jq .
 
 # 退出服务器
-curl http://localhost:35182/exit
+curl -H "Authorization: Bearer $TOKEN" http://localhost:35182/exit
 ```
 
 使用 PowerShell：
 
 ```powershell
+# 设置 Token（从 config.json 获取）
+$TOKEN = "your-auth-token-from-config-json"
+$headers = @{
+    "Authorization" = "Bearer $TOKEN"
+}
+
 # 检查状态
-Invoke-WebRequest -Uri "http://localhost:35182/status"
+Invoke-WebRequest -Uri "http://localhost:35182/status" -Headers $headers
 
 # 读取剪贴板
-Invoke-WebRequest -Uri "http://localhost:35182/clipboard"
+Invoke-WebRequest -Uri "http://localhost:35182/clipboard" -Headers $headers
 
 # 写入剪贴板
 $body = @{ content = "Hello World" } | ConvertTo-Json
 Invoke-WebRequest -Uri "http://localhost:35182/clipboard" `
-  -Method PUT -ContentType "application/json" -Body $body
+  -Method PUT -ContentType "application/json" -Body $body -Headers $headers
 
 # 截图
-$response = Invoke-RestMethod -Uri "http://localhost:35182/screenshot"
+$response = Invoke-RestMethod -Uri "http://localhost:35182/screenshot" -Headers $headers
 [System.Convert]::FromBase64String($response.data) | Set-Content -Path "screenshot.png" -Encoding Byte
 
 # 获取窗口列表
-Invoke-RestMethod -Uri "http://localhost:35182/windows"
+Invoke-RestMethod -Uri "http://localhost:35182/windows" -Headers $headers
 
 # 获取进程列表
-Invoke-RestMethod -Uri "http://localhost:35182/processes"
+Invoke-RestMethod -Uri "http://localhost:35182/processes" -Headers $headers
 
 # 执行命令
 $body = @{ command = "dir C:\" } | ConvertTo-Json
 Invoke-RestMethod -Uri "http://localhost:35182/execute" `
-  -Method POST -ContentType "application/json" -Body $body
+  -Method POST -ContentType "application/json" -Body $body -Headers $headers
 
 # 退出服务器
-Invoke-WebRequest -Uri "http://localhost:35182/exit"
+Invoke-WebRequest -Uri "http://localhost:35182/exit" -Headers $headers
 ```
 
 ## 托盘菜单功能

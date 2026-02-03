@@ -393,7 +393,9 @@ GET /search?path=C:\test.txt&query=keyword&max=50
 
 ### 8. 读取剪贴板
 
-获取当前剪贴板的文本内容。
+获取当前剪贴板的内容。
+
+**增强功能**：支持文本、图片和文件三种类型！
 
 **请求**:
 
@@ -401,30 +403,79 @@ GET /search?path=C:\test.txt&query=keyword&max=50
 GET /clipboard
 ```
 
-**响应（有内容）**:
+**响应类型 1 - 文本**:
 
 ```json
 {
-    "content": "剪贴板内容",
+    "type": "text",
+    "content": "剪贴板文本内容",
     "length": 15,
     "empty": false
 }
 ```
 
-**响应（空剪贴板）**:
+**响应类型 2 - 图片**（截图或复制的图片）:
 
 ```json
 {
-    "content": "",
-    "empty": true
+    "type": "image",
+    "format": "png",
+    "url": "http://192.168.31.3:35182/clipboard/image/clipboard_images/clipboard_20260203_223015.png",
+    "path": "/clipboard/image/clipboard_images/clipboard_20260203_223015.png"
+}
+```
+
+**响应类型 3 - 文件**（从资源管理器复制的文件）:
+
+```json
+{
+    "type": "files",
+    "files": [
+        {
+            "name": "20260203_223015_0_document.pdf",
+            "url": "http://192.168.31.3:35182/clipboard/file/20260203_223015_0_document.pdf",
+            "path": "/clipboard/file/20260203_223015_0_document.pdf"
+        },
+        {
+            "name": "20260203_223015_1_image.jpg",
+            "url": "http://192.168.31.3:35182/clipboard/file/20260203_223015_1_image.jpg",
+            "path": "/clipboard/file/20260203_223015_1_image.jpg"
+        }
+    ]
 }
 ```
 
 **字段说明**:
 
-- `content`: 剪贴板文本内容
-- `length`: 内容长度（字符数）
-- `empty`: 是否为空
+- `type`: 剪贴板内容类型（"text", "image", "files"）
+- `content`: 文本内容（仅 type="text"）
+- `length`: 文本长度（仅 type="text"）
+- `empty`: 是否为空（仅 type="text"）
+- `format`: 图片格式（仅 type="image"）
+- `url`: 完整访问 URL
+- `path`: 相对路径
+- `files`: 文件列表（仅 type="files"）
+- `name`: 文件名
+
+**下载图片或文件**:
+
+```bash
+# 下载剪贴板图片
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://192.168.31.3:35182/clipboard/image/clipboard_images/clipboard_20260203_223015.png" \
+  -o clipboard_image.png
+
+# 下载剪贴板文件
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://192.168.31.3:35182/clipboard/file/20260203_223015_0_document.pdf" \
+  -o document.pdf
+```
+
+**使用场景**:
+
+1. **获取截图**: 用户按 Win+Shift+S 截图后，调用 API 获取图片
+2. **获取复制的文件**: 用户在资源管理器中复制文件后，调用 API 获取文件列表
+3. **获取文本**: 用户复制文本后，调用 API 获取文本内容
 
 **错误响应**:
 
@@ -438,7 +489,7 @@ GET /clipboard
 
 ### 9. 写入剪贴板
 
-设置剪贴板的文本内容。
+设置剪贴板的文本内容（仅支持文本）。
 
 **请求**:
 
@@ -481,17 +532,23 @@ Content-Type: application/json
 
 ```bash
 # 写入简单文本
-curl -X PUT -H "Content-Type: application/json" \
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"content":"Hello World"}' \
   http://localhost:35182/clipboard
 
 # 写入多行文本
-curl -X PUT -H "Content-Type: application/json" \
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"content":"Line 1\nLine 2\nLine 3"}' \
   http://localhost:35182/clipboard
 
 # 写入特殊字符
-curl -X PUT -H "Content-Type: application/json" \
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d '{"content":"Special: \"quotes\", \ttabs, and \\backslashes\\"}' \
   http://localhost:35182/clipboard
 ```
